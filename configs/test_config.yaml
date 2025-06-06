@@ -1,0 +1,18 @@
+world:
+  x_bounds: (0, 60)
+  y_bounds: (0, 100)
+
+drone:
+  speed: 2
+
+laser:
+  "laser_1":
+    id: 1
+    position: (10, 20)
+    radius: 20
+
+rader:
+  "radar_1":
+    id: 1
+    position: (10, 40)
+    radius: 40
