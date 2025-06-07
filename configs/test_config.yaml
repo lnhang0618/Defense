@@ -1,6 +1,6 @@
 world:
-  x_bounds: (0, 60)
-  y_bounds: (0, 100)
+  x_bounds: [0, 100]
+  y_bounds: [0, 100]
 
 drone:
   speed: 2
@@ -8,11 +8,39 @@ drone:
 laser:
   "laser_1":
     id: 1
-    position: (10, 20)
-    radius: 20
+    position: [12.5, 15]
+  "laser_2":
+    id: 2
+    position: [25, 15]
+  "laser_3":
+    id: 3
+    position: [37.5, 15]
+  "laser_4":
+    id: 4
+    position: [50, 15]
+  "laser_5":
+    id: 5 
+    position: [62.5, 15]
+  "laser_6":
+    id: 6
+    position: [75, 15]
+  "laser_7":
+    id: 7
+    position: [87.5, 15]
 
-rader:
+radar:
   "radar_1":
     id: 1
-    position: (10, 40)
-    radius: 40
+    position: [25, 30]
+    radius: 30
+    max_tracks: 2
+  "radar_2":
+    id: 2
+    position: [50, 30]
+    radius: 30
+    max_tracks: 2
+  "radar_3":
+    id: 3
+    position: [75, 30]
+    radius: 30
+    max_tracks: 2

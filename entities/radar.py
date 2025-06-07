@@ -13,7 +13,7 @@ class Radar:
         self.tracked_drones = []  # 存储被雷达锁定的无人机
         self.in_range_drones = []
         
-    def update(self, drones):
+    def detect_drones(self, drones):
         
         # 每帧检测逻辑
         
