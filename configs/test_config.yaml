@@ -1,46 +1,46 @@
 world:
-  x_bounds: [0, 100]
+  x_bounds: [0, 60]
   y_bounds: [0, 100]
 
 drone:
-  speed: 2
+  spawn_interval: 3
+  speed: 1.8
+  spawn_probability: 0.5
+
 
 laser:
   "laser_1":
     id: 1
-    position: [12.5, 15]
+    position: [5, 10]
   "laser_2":
     id: 2
-    position: [25, 15]
+    position: [15, 10]
   "laser_3":
     id: 3
-    position: [37.5, 15]
+    position: [25, 10]
   "laser_4":
     id: 4
-    position: [50, 15]
+    position: [35, 10]
   "laser_5":
     id: 5 
-    position: [62.5, 15]
+    position: [45, 10]
   "laser_6":
     id: 6
-    position: [75, 15]
-  "laser_7":
-    id: 7
-    position: [87.5, 15]
+    position: [55, 10]
 
 radar:
   "radar_1":
     id: 1
-    position: [25, 30]
-    radius: 30
+    position: [10, 30]
+    radius: 12
     max_tracks: 2
   "radar_2":
     id: 2
-    position: [50, 30]
-    radius: 30
+    position: [30, 30]
+    radius: 12
     max_tracks: 2
   "radar_3":
     id: 3
-    position: [75, 30]
-    radius: 30
+    position: [50, 30]
+    radius: 12
     max_tracks: 2

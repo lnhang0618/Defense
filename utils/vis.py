@@ -24,13 +24,6 @@ class Visualizer:
         self.ax.set_ylim(ylim)
         self.ax.set_title("Drone Simulation")
 
-        # 绘制无人机
-        for drone in drones:
-            if drone.health <= 20:
-                self.ax.scatter(drone.position[0], drone.position[1], color='red', marker='x', s=100)
-            else:
-                self.ax.scatter(drone.position[0], drone.position[1], color='black', marker='o', s=100)
-
         # 绘制雷达
         for radar in radars:
             self.ax.scatter(radar.position[0], radar.position[1], color='blue', marker='^', s=100)
@@ -48,9 +41,10 @@ class Visualizer:
                         color='blue', linestyle='--', linewidth=1.5
                     )
                     self.ax.add_line(line)
+                    rec_size = 1/10 * xlim[1]  # 根据坐标轴范围调整大小
                     rect = Rectangle(
-                        (drone.position[0] - 0.5, drone.position[1] - 0.5),
-                        1.0, 1.0,
+                        (drone.position[0] - rec_size/2, drone.position[1] - rec_size/2),
+                        rec_size, rec_size,
                         fill=False, color='blue', linewidth=1.5
                     )
                     self.ax.add_patch(rect)
@@ -68,10 +62,16 @@ class Visualizer:
                 self.ax.add_line(line)
 
                 if 20 < target.health < 100:
-                    outer_radius = 1.0 * (target.health / 100)
+                    outer_radius = 1/20 * xlim[1] * (target.health / 100)
                     inner_radius = outer_radius * 0.7
                     outer_circle = Circle(target.position, outer_radius, color='green', fill=True, alpha=0.3)
                     inner_circle = Circle(target.position, inner_radius, color='white', fill=True)
                     self.ax.add_patch(outer_circle)
                     self.ax.add_patch(inner_circle)
-                    self.ax.scatter(target.position[0], target.position[1], color="black", s=100)
+                    
+        # 绘制无人机
+        for drone in drones:
+            if drone.health <= 20:
+                self.ax.scatter(drone.position[0], drone.position[1], color='red', marker='x', s=100)
+            else:
+                self.ax.scatter(drone.position[0], drone.position[1], color='black', marker='o', s=100)

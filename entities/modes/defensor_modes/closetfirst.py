@@ -1,93 +1,155 @@
 from utils.utils import cal_distance
 from entities.modes.defensor_modes.defensor_mode_base import Defensor_Mode_Base
-from copy import deepcopy
+import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 class ClosestFirst(Defensor_Mode_Base):
-    def update_defensors(self, radars, lasers, drones):
-        # 阶段一：更新雷达检测状态
-        for radar in radars:
-            radar.detect_drones(drones)
-
-        # 阶段二：分配雷达跟踪目标
-        self.assign_radars_to_targets(radars, lasers, drones)
-
-        # 阶段三：分配激光攻击目标
-        self.assign_lasers_to_targets(radars, lasers)
-
-    def assign_radars_to_targets(self, radars, lasers, drones):
-        """
-        雷达根据激光锁定状态选择跟踪目标。
-        """
-        # 获取所有被激光锁定的目标
-        active_targets = [l.target_drone for l in lasers if l.target_drone is not None]
+    def update(self, radars, lasers, drones):
+        # 阶段一：清理状态（移除已逃脱或被击毁的无人机）
+        # 以及判断无人机是否可以被检测，并根据规则更新雷达和激光炮的状态
+        self.reset_state(radars, lasers, drones)
         
-        # 为每个雷达分配跟踪目标
-        for radar in radars:
-            # 已经跟踪的目标
-            current_tracks = set(radar.tracked_drones)
-            
-            # 可探测的无人机
-            in_range = [d for d in drones if cal_distance(radar.position, d.position) <= radar.radius]
-            in_range.sort(key=lambda d: cal_distance(radar.position, d.position))
-
-            # 1. 优先确保 active_targets 被跟踪
-            targets_to_track = []
-            for drone in active_targets:
-                if drone in in_range and drone not in radar.tracked_drones:
-                    targets_to_track.append(drone)
-                    if len(targets_to_track) >= radar.max_tracks:
-                        break
-
-            # 2. 剩余名额分配给其他未被锁定的无人机
-            unassigned = [d for d in in_range if d not in active_targets]
-            for drone in unassigned:
-                if drone not in targets_to_track and len(targets_to_track) < radar.max_tracks:
-                    targets_to_track.append(drone)
-
-            # 更新雷达跟踪目标
-            new_tracks = set(targets_to_track)
-            removed = current_tracks - new_tracks
-            added = new_tracks - current_tracks
-
-            # 更新无人机的锁定状态
-            for drone in removed:
-                if radar in drone.locked_radars:
-                    drone.locked_radars.remove(radar)
-
-            for drone in added:
-                drone.locked_radars.append(radar)
-
-            radar.tracked_drones = list(new_tracks)
-
-    def assign_lasers_to_targets(self, radars, lasers):
-        """
-        激光炮在雷达锁定的目标中选择攻击目标。
-        """
-        # 获取所有雷达锁定的目标
-        tracked_drones = set()
-        for radar in radars:
-            tracked_drones.update(radar.tracked_drones)
-
-        # 获取当前被激光锁定的目标
-        active_targets = [l.target_drone for l in lasers if l.target_drone is not None]
-
-        # 分配新目标
+        # 阶段三：分配雷达跟踪目标（优先保障被激光锁定的目标）
+        self.assign_radars_to_active_targets(radars, lasers, drones)
+        
+        # 阶段四：优化分配剩余资源
+        self.optimize_resource_allocation(radars, lasers, drones)
+        
+        # 阶段五：更新激光状态
         for laser in lasers:
-            if laser.target_drone is not None:
-                # 已有目标，检查是否仍被雷达跟踪
-                if laser.target_drone not in tracked_drones:
-                    laser.target_drone = None
-                else:
-                    continue
-
-            # 寻找新目标：未被其他激光锁定、且被雷达跟踪
-            candidates = [d for d in tracked_drones if d not in active_targets]
-            if candidates:
-                candidates.sort(key=lambda d: cal_distance(laser.position, d.position))
-                laser.target_drone = candidates[0]
-                active_targets.append(laser.target_drone)
-            else:
-                laser.target_drone = None
-
-            # 更新激光状态
             laser.attack_drone()
+    
+    def reset_state(self, radars, lasers, drones):
+        """清理无效状态：已逃脱/被击毁的无人机"""
+        # 重置无人机的检测和锁定状态
+        for drone in drones:
+            drone.detected_by_radar = False
+            drone.locked_by_radar = False
+        
+        # 清理雷达跟踪列表
+        for radar in radars:
+            # 检测每个radar可检测的无人机
+            radar.detect_drones(drones)
+            # 保留未逃脱且未被击毁的无人机
+            valid_drones = [d for d in radar.tracked_drones if not d.escaped and not d.destroyed and d.detected_by_radar]
+            radar.tracked_drones = valid_drones
+            
+            # 保留drone的锁定状态
+            for drone in valid_drones:
+                drone.locked_by_radar = True
+                
+        # 清理激光目标
+        for laser in lasers:
+            if laser.target_drone:
+                # 如果激光目标无人机已被雷达解除锁定、逃脱或被击毁，则清除激光目标
+                if (not laser.target_drone.locked_by_radar or 
+                    laser.target_drone.escaped or 
+                    laser.target_drone.destroyed):
+                    laser.target_drone = None
+    
+    def assign_radars_to_active_targets(self, radars, lasers, drones):
+        """当前版本锁定雷达与激光炮的分配直到激光炮目标被击毁或逃脱"""
+        
+        # 当前不涉及再分配，该步骤可以暂时省略
+        pass 
+    
+    def optimize_resource_allocation(self, radars, lasers, drones):
+        # 获取空闲激光炮和可分配无人机
+        free_lasers = [l for l in lasers if l.target_drone is None]
+        allocatable_drones = [d for d in drones 
+                            if not d.escaped and not d.destroyed and 
+                            not any(l.target_drone == d for l in lasers)]
+        
+        # 计算雷达剩余容量
+        radar_capacities = {}
+        for radar in radars:
+            remaining = radar.max_tracks - len(radar.tracked_drones)
+            radar_capacities[radar.radar_id] = max(0, remaining)  # 确保非负
+        
+        # 构建可攻击无人机集合（有雷达覆盖的）
+        attackable_drones = [
+            d for d in allocatable_drones
+            if not d.locked_by_radar
+            and any(d in radar.detected_drones for radar in radars)
+        ]
+        
+        # 如果没有空闲激光炮或可攻击的无人机，则不进行分配
+        if not free_lasers or not attackable_drones:
+            return
+
+        # 构建距离矩阵（激光炮×无人机）
+        dist_matrix = np.zeros((len(free_lasers), len(attackable_drones)))
+        for i, laser in enumerate(free_lasers):
+            for j, drone in enumerate(attackable_drones):
+                dist_matrix[i, j] = cal_distance(laser.position, drone.position)
+        
+        # 求解最小化最大距离的分配
+        laser_assignments, drone_assignments = self.minmax_assignment(
+            dist_matrix, 
+            free_lasers,
+            attackable_drones,
+            radar_capacities
+        )
+        
+        # 应用分配结果
+        for lidx, didx in zip(laser_assignments, drone_assignments):
+            laser = free_lasers[lidx]
+            drone = attackable_drones[didx]
+            
+            # 查找可用雷达
+            for radar in radars:
+                if (radar_capacities[radar.radar_id] > 0 and 
+                    drone in radar.detected_drones):
+                    # 分配雷达
+                    radar.lock_on_drone(drone)
+                    drone.locked_by_radar = True
+                    radar_capacities[radar.radar_id] -= 1
+                    # 分配激光
+                    laser.target_drone = drone
+                    break
+
+    def minmax_assignment(self, dist_matrix, lasers, drones, radar_capacities):
+        """最小化最大距离的分配算法"""
+        # 获取距离的排序范围
+        min_dist = np.min(dist_matrix)
+        max_dist = np.max(dist_matrix)
+        
+        # 二分搜索最小可行最大距离
+        best_assignment = None
+        while max_dist - min_dist > 1e-5:
+            mid = (min_dist + max_dist) / 2
+            if self.is_feasible(dist_matrix, mid, lasers, drones, radar_capacities):
+                max_dist = mid
+            else:
+                min_dist = mid
+        
+        # 构造二分图 (距离<=max_dist)
+        n_lasers, n_drones = dist_matrix.shape
+        bipartite_graph = np.zeros((n_lasers, n_drones))
+        for i in range(n_lasers):
+            for j in range(n_drones):
+                if dist_matrix[i, j] <= max_dist:
+                    bipartite_graph[i, j] = 1
+        
+        # 求解最大匹配
+        laser_inds, drone_inds = linear_sum_assignment(-bipartite_graph)
+        return laser_inds, drone_inds
+
+    def is_feasible(self, dist_matrix, max_dist, lasers, drones, radar_capacities):
+        """检查给定最大距离是否可行"""
+        # 构造二分图 (距离<=max_dist)
+        n_lasers, n_drones = dist_matrix.shape
+        bipartite_graph = np.zeros((n_lasers, n_drones))
+        for i in range(n_lasers):
+            for j in range(n_drones):
+                if dist_matrix[i, j] <= max_dist:
+                    bipartite_graph[i, j] = 1
+        
+        # 求解最大匹配
+        row_inds, col_inds = linear_sum_assignment(-bipartite_graph)
+        matched_drones = set(col_inds)
+        
+        # 检查雷达容量是否满足
+        required_radars = len(matched_drones)
+        available_radars = sum(radar_capacities.values())
+        return available_radars >= required_radars

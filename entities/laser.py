@@ -10,7 +10,7 @@ class Laser:
         # self.radius = self.config['radius']
         
         self.target_drone = None
-        self.charge_rate = 10
+        self.charge_rate = 2.0
         
     def attack_drone(self):
         

@@ -7,7 +7,8 @@ class Drone:
         self.drone_id = None # 需要在创建时设置
         self.position = None # 需要在创建时设置
         self.health = 100
-        self.locked_raders = []
+        self.detected_by_radar = False
+        self.locked_by_radar = False
         self.escaped = False
         self.destroyed = False
         
@@ -26,7 +27,7 @@ class Drone:
         self.position = (new_x, new_y)
 
         # 如果没有被锁定，恢复健康值
-        if len(self.locked_raders) == 0:
+        if not self.locked_by_radar:
             self.health = 100
 
         # 检查是否逃逸

@@ -3,6 +3,9 @@ from entities.laser import Laser
 from entities.radar import Radar
 from utils.utils import cal_distance
 from utils.vis import Visualizer
+from managers.mode_manager import Mode_Manager
+
+
 import random
 import matplotlib.pyplot as plt
 import yaml
@@ -17,6 +20,9 @@ class GameManager:
         
         self.world_config = config['world']
         self.visualizer = Visualizer(self.world_config)
+        
+        self.attacker_mode_manager = Mode_Manager(robot_type="Attacker")
+        self.defensor_mode_manager = Mode_Manager(robot_type="Defensor")
 
         # 初始化组件
         self.radars = []
@@ -32,8 +38,8 @@ class GameManager:
         self.drone_config = config['drone']
 
         # 控制无人机生成参数
-        self.spawn_interval = config.get('spawn_interval', 5)  # 每隔多少步生成一次
-        self.spawn_probability = config.get('spawn_probability', 0.3)  # 每次生成的概率
+        self.spawn_interval = self.drone_config.get('spawn_interval', 5)  # 每隔多少步生成一次
+        self.spawn_probability = self.drone_config.get('spawn_probability', 0.3)  # 每次生成的概率
         self.step_count = 0
         
         # 可选：用于记录唯一 drone_id
@@ -55,18 +61,27 @@ class GameManager:
             drone.position = (random.uniform(x_min, x_max), y_top)
             drone.direction = (0, -1)  # 默认向下飞行
             self.drones.append(drone)
-            
-    def update_drones(self):
-        for drone in self.drones:
-            drone.move()
+        
+    def update_attacker(self):
+        # 更新攻击者模式
+        active_mode = self.attacker_mode_manager.update_and_get_active_modes(self.radars, self.lasers, self.drones)
+        if active_mode:
+            active_mode.update(self.radars, self.lasers, self.drones)
+    
+    def update_defensor(self):
+        # 更新防御者模式
+        active_mode = self.defensor_mode_manager.update_and_get_active_modes(self.radars, self.lasers, self.drones)
+        if active_mode:
+            active_mode.update(self.radars, self.lasers, self.drones)
 
     def step(self):
         self.step_count += 1
         # 根据间隔生成无人机
         if self.step_count % self.spawn_interval == 0:
             self.spawn_drone()
-        # 更新无人机
-        self.update_drones()
+        # 更新攻击者和防御者模式
+        self.update_attacker()
+        self.update_defensor()
 
     def start_simulation(self, max_steps=1000):
         plt.ion()  # 启用交互模式
@@ -75,7 +90,7 @@ class GameManager:
                 self.step()
                 self.visualizer.draw(self.drones, self.radars, self.lasers)
                 plt.draw()
-                plt.pause(0.1)
+                plt.pause(0.3)
                 if not plt.fignum_exists(self.visualizer.fig.number):
                     print("Simulation window closed.")
                     break
