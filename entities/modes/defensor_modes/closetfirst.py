@@ -4,7 +4,10 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment
 
 class ClosestFirst(Defensor_Mode_Base):
-    def update(self, radars, lasers, drones):
+    def __init__(self, assignment_strategy='minsum'):
+        self.assignment_strategy = assignment_strategy
+    
+    def update(self, radars, lasers, drones, infrastructures):
         # 阶段一：清理状态（移除已逃脱或被击毁的无人机）
         # 以及判断无人机是否可以被检测，并根据规则更新雷达和激光炮的状态
         self.reset_state(radars, lasers, drones)
@@ -31,21 +34,24 @@ class ClosestFirst(Defensor_Mode_Base):
             # 检测每个radar可检测的无人机
             radar.detect_drones(drones)
             # 保留未逃脱且未被击毁的无人机
-            valid_drones = [d for d in radar.tracked_drones if not d.escaped and not d.destroyed and d.detected_by_radar]
+            valid_drones = [d for d in radar.tracked_drones if not d.succeed and not d.destroyed and d.detected_by_radar]
             radar.tracked_drones = valid_drones
+            # 清理雷达的协作激光炮
+            valid_lasers = [l for l in radar.cooperate_lasers if l.target_drone and not l.target_drone.succeed and not l.target_drone.destroyed]
+            radar.cooperate_lasers = valid_lasers
             
-            # 保留drone的锁定状态
             for drone in valid_drones:
                 drone.locked_by_radar = True
                 
         # 清理激光目标
         for laser in lasers:
             if laser.target_drone:
-                # 如果激光目标无人机已被雷达解除锁定、逃脱或被击毁，则清除激光目标
+            # 如果激光目标无人机已被雷达解除锁定、逃脱或被击毁，则清除激光目标
                 if (not laser.target_drone.locked_by_radar or 
-                    laser.target_drone.escaped or 
+                    laser.target_drone.succeed or 
                     laser.target_drone.destroyed):
                     laser.target_drone = None
+                    laser.coorperate_radar = None
     
     def assign_radars_to_active_targets(self, radars, lasers, drones):
         """当前版本锁定雷达与激光炮的分配直到激光炮目标被击毁或逃脱"""
@@ -57,7 +63,7 @@ class ClosestFirst(Defensor_Mode_Base):
         # 获取空闲激光炮和可分配无人机
         free_lasers = [l for l in lasers if l.target_drone is None]
         allocatable_drones = [d for d in drones 
-                            if not d.escaped and not d.destroyed and 
+                            if not d.succeed and not d.destroyed and 
                             not any(l.target_drone == d for l in lasers)]
         
         # 计算雷达剩余容量
@@ -76,20 +82,41 @@ class ClosestFirst(Defensor_Mode_Base):
         # 如果没有空闲激光炮或可攻击的无人机，则不进行分配
         if not free_lasers or not attackable_drones:
             return
+        
+        # 计算每个无人机的预期生存时间，转化为火力支援强度
+        drone_required_fire_support = {drone.drone_id: 0 for drone in attackable_drones}
+        for radar in radars:
+            for drone_id, period in radar.drone_window_periods_dict.items():
+                drone_required_fire_support[drone_id] = (drones[drone_id].health - 20) / period
 
         # 构建距离矩阵（激光炮×无人机）
         dist_matrix = np.zeros((len(free_lasers), len(attackable_drones)))
         for i, laser in enumerate(free_lasers):
             for j, drone in enumerate(attackable_drones):
-                dist_matrix[i, j] = cal_distance(laser.position, drone.position)
+                
+                # 获取激光炮和无人机之间的有效火力强度
+                effective_rate = laser.get_effective_rate(drone)
+                if effective_rate < drone_required_fire_support[drone.drone_id]:
+                    # 如果激光炮的火力不足以满足无人机的需求，则设置距离为较大值
+                    dist_matrix[i, j] = 1e4
+                else:
+                    dist_matrix[i, j] = cal_distance(laser.position, drone.position)
         
         # 求解最小化最大距离的分配
-        laser_assignments, drone_assignments = self.minmax_assignment(
-            dist_matrix, 
-            free_lasers,
-            attackable_drones,
-            radar_capacities
-        )
+        if self.assignment_strategy == 'minmax':
+            laser_assignments, drone_assignments = self.minmax_assignment(
+                dist_matrix, 
+                free_lasers,
+                attackable_drones,
+                radar_capacities
+            )
+        elif self.assignment_strategy == 'minsum':  # 新增minsum分支
+            laser_assignments, drone_assignments = self.minsum_assignment(
+                dist_matrix,
+                free_lasers,
+                attackable_drones,
+                radar_capacities
+            )
         
         # 应用分配结果
         for lidx, didx in zip(laser_assignments, drone_assignments):
@@ -102,10 +129,12 @@ class ClosestFirst(Defensor_Mode_Base):
                     drone in radar.detected_drones):
                     # 分配雷达
                     radar.lock_on_drone(drone)
+                    radar.cooperate_lasers.append(laser)
                     drone.locked_by_radar = True
                     radar_capacities[radar.radar_id] -= 1
                     # 分配激光
                     laser.target_drone = drone
+                    laser.coorperate_radar = radar
                     break
 
     def minmax_assignment(self, dist_matrix, lasers, drones, radar_capacities):
@@ -134,6 +163,27 @@ class ClosestFirst(Defensor_Mode_Base):
         # 求解最大匹配
         laser_inds, drone_inds = linear_sum_assignment(-bipartite_graph)
         return laser_inds, drone_inds
+    
+    def minsum_assignment(self, dist_matrix, lasers, drones, radar_capacities):
+        """最小化总距离的分配算法"""
+        # 求解最小总距离分配
+        laser_inds, drone_inds = linear_sum_assignment(dist_matrix)
+        
+        # 按距离排序匹配对（优先保留小距离）
+        matches = []
+        for lidx, didx in zip(laser_inds, drone_inds):
+            dist = dist_matrix[lidx, didx]
+            matches.append((lidx, didx, dist))
+        matches.sort(key=lambda x: x[2])  # 按距离升序排序
+        
+        # 根据雷达容量截断匹配
+        available_radars = sum(radar_capacities.values())
+        valid_matches = matches[:available_radars]
+        
+        # 分离索引
+        laser_assignments = [m[0] for m in valid_matches]
+        drone_assignments = [m[1] for m in valid_matches]
+        return laser_assignments, drone_assignments
 
     def is_feasible(self, dist_matrix, max_dist, lasers, drones, radar_capacities):
         """检查给定最大距离是否可行"""

@@ -24,7 +24,7 @@ class Mode_Manager:
         else:
             raise ValueError(f"Mode {mode_name} not found.")
         
-    def update_and_get_active_modes(self, radars, lasers, drones):
+    def update_and_get_active_modes(self, radars, lasers, drones, infrastructures):
         # 在此设置规则，更新活动模式并返回当前活动模式,目前版本写死
         
         if self.robot_type == "Defensor":

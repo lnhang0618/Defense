@@ -1,46 +1,123 @@
 world:
-  x_bounds: [0, 60]
-  y_bounds: [0, 100]
+  x_bounds: [-80, 80]
+  y_bounds: [-80, 80]
+  map_radius: 80
+  map_center: [0, 0]
 
 drone:
-  spawn_interval: 3
-  speed: 1.8
-  spawn_probability: 0.5
+  spawn_interval: 2
+  spawn_num: 3
+  velocity: 2
+  spawn_probability: 0.8
+  # attack_angle: [80, 100]
 
 
 laser:
   "laser_1":
     id: 1
-    position: [5, 10]
+    position: [0, 20]
   "laser_2":
     id: 2
-    position: [15, 10]
+    position: [20, 0]
   "laser_3":
     id: 3
-    position: [25, 10]
+    position: [0, -20]
   "laser_4":
     id: 4
-    position: [35, 10]
+    position: [-20, 0]
   "laser_5":
-    id: 5 
-    position: [45, 10]
+    id: 5
+    position: [10, 17.32]
   "laser_6":
     id: 6
-    position: [55, 10]
+    position: [17.32, 10]
+  "laser_7":
+    id: 7
+    position: [10, -17.32]
+  "laser_8":
+    id: 8
+    position: [-17.32, -10]
+  "laser_9":
+    id: 9
+    position: [-10, -17.32]
+  "laser_10":
+    id: 10
+    position: [-17.32, 10]
+  "laser_11":
+    id: 11
+    position: [-10, 17.32]
+  "laser_12":
+    id: 12
+    position: [17.32, -10]
+
 
 radar:
   "radar_1":
     id: 1
-    position: [10, 30]
-    radius: 12
-    max_tracks: 2
+    position: [0, 40]
+    radius: 18
+    max_tracks: 3
   "radar_2":
     id: 2
-    position: [30, 30]
-    radius: 12
-    max_tracks: 2
+    position: [40, 0]
+    radius: 18
+    max_tracks: 3
   "radar_3":
     id: 3
-    position: [50, 30]
-    radius: 12
-    max_tracks: 2
+    position: [-40, 0]
+    radius: 18
+    max_tracks: 3
+  "radar_4":
+    id: 4
+    position: [0, -40]
+    radius: 18
+    max_tracks: 3
+  "radar_5":
+    id: 5
+    position: [28.28, -28.28]
+    radius: 18
+    max_tracks: 3
+  "radar_6":
+    id: 6
+    position: [-28.28, -28.28]
+    radius: 18
+    max_tracks: 3
+  "radar_7":
+    id: 7
+    position: [28.28, 28.28]
+    radius: 18
+    max_tracks: 3
+  "radar_8":
+    id: 8
+    position: [-28.28, 28.28]
+    radius: 18
+    max_tracks: 3
+
+infrastructure:
+  "infrastructure_1":
+    id: 1
+    position: [0, 0]
+  "infrastructure_2":
+    id: 2
+    position: [5, 0]
+  "infrastructure_3":
+    id: 3
+    position: [-5, 0]
+  "infrastructure_4":
+    id: 4
+    position: [0, 5]
+  "infrastructure_5":
+    id: 5
+    position: [0, -5]
+  "infrastructure_6":
+    id: 6
+    position: [5, 5]
+  "infrastructure_7":
+    id: 7
+    position: [-5, -5]
+  "infrastructure_8":
+    id: 8
+    position: [-5, 5]
+  "infrastructure_9":
+    id: 9
+    position: [5, -5]
